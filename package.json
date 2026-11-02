@@ -1,0 +1,13 @@
+{
+  "name":"fabricnow-pay",
+  "version":"1.0.0",
+  "description":"Central Paystack payment and subscription gateway for Fabric Now applications",
+  "main":"src/server.js",
+  "scripts":{"start":"node src/server.js","dev":"nodemon src/server.js","test":"node --test"},
+  "engines":{"node":">=18.18"},
+  "dependencies":{
+    "axios":"^1.8.4","cors":"^2.8.5","dotenv":"^16.4.7","express":"^4.21.2",
+    "express-rate-limit":"^7.5.0","helmet":"^8.0.0","mongoose":"^8.9.5"
+  },
+  "devDependencies":{"nodemon":"^3.1.9"}
+}
