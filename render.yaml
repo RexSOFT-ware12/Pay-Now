@@ -3,7 +3,7 @@ services:
     name: fabricnow-pay
     runtime: node
     plan: starter
-    buildCommand: npm install
+    buildCommand: npm install --omit=dev
     startCommand: npm start
     healthCheckPath: /health
     envVars:
@@ -14,6 +14,22 @@ services:
       - key: PAYSTACK_SECRET_KEY
         sync: false
       - key: GATEWAY_INTERNAL_SECRET
-        sync: false
+        generateValue: true
       - key: ADMIN_API_KEY
+        generateValue: true
+      - key: STYLE_CALLBACK_URL
+        sync: false
+      - key: STYLE_EVENT_URL
+        sync: false
+      - key: STYLE_EVENT_SECRET
+        sync: false
+      - key: STYLE_PLAN_CODES
+        sync: false
+      - key: QWESI_CALLBACK_URL
+        sync: false
+      - key: QWESI_EVENT_URL
+        sync: false
+      - key: QWESI_EVENT_SECRET
+        sync: false
+      - key: QWESI_PLAN_CODES
         sync: false

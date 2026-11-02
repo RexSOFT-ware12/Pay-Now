@@ -57,14 +57,10 @@ The gateway forwards `{event,payload,reference,source,eventId,application}` to e
 
 Qwesi Hospital's current Paystack webhook should **not be deleted until its existing payment behavior is migrated and test-verified**. If Qwesi and Style have separate Paystack integrations/secret keys, configure each integration's webhook independently (or run one gateway instance/key per integration). A single Paystack integration has one configured webhook URL, so this service must route every event that integration currently sends.
 
-## Deployment
-### Render
-1. Push this repository to GitHub and create a **Blueprint** in the Render dashboard connected to that repository. Render will read `render.yaml` and create the web service.
-2. Provide `MONGODB_URI`, `PAYSTACK_SECRET_KEY`, `GATEWAY_INTERNAL_SECRET`, and `ADMIN_API_KEY` when prompted. Use a MongoDB Atlas database/user with only the permissions this service needs, and allow Render's outbound IP addresses in Atlas Network Access.
-3. If using the Style or Qwesi integrations, add that app's `*_CALLBACK_URL`, `*_EVENT_URL`, `*_EVENT_SECRET`, and `*_PLAN_CODES` environment variables in the Render service settings. Use a different, long random `GATEWAY_INTERNAL_SECRET` and `ADMIN_API_KEY`; never put them in a client app.
-4. Deploy and check `https://<your-service>.onrender.com/health`. Add `payments.fabricnow.pro` as a custom domain in Render if desired, then configure DNS as Render instructs.
-5. In Paystack's webhook settings, set `https://<your-service>.onrender.com/webhooks/paystack` (or your custom domain). Test checkout and webhook delivery with test keys before changing to live keys.
+## Deploy to Render
+1. Push this repository to GitHub and create a Render Blueprint from the repository. Render reads `render.yaml` and creates the `fabricnow-pay` web service.
+2. Provide `MONGODB_URI` for a MongoDB deployment reachable by Render, `PAYSTACK_SECRET_KEY` for your Paystack test integration, and the callback URL, event URL, event secret, and plan codes for each app you use. `STYLE_EVENT_SECRET` and `QWESI_EVENT_SECRET` must match the corresponding backend secrets. Leave the unused app's values blank.
+3. Render generates `GATEWAY_INTERNAL_SECRET` and `ADMIN_API_KEY`; copy them from the service's environment settings into the trusted clients/admin tools that need them. Keep all secrets out of source control.
+4. After the service is live, set the Paystack webhook URL to `https://<your-render-service>.onrender.com/webhooks/paystack` (or your configured custom domain). Confirm `GET /health` responds before testing a Paystack test transaction.
 
-Render supplies `PORT`; the service listens on it automatically. Set secrets in Render's environment settings, not in the repository. The included `Dockerfile` is optional; the Blueprint deploys with Render's Node runtime.
-
-**Credential safety:** credentials were previously present in `.env.example`. Treat the exposed MongoDB and Paystack credentials as compromised: revoke/rotate them, remove them from any Git history where they were committed, and only enter replacement values in Render's secret environment settings.
+The Blueprint uses Render's Starter plan so the webhook service remains available. Configure a custom domain in Render if you need a stable branded URL, then use that domain for the Paystack webhook and `PUBLIC_BASE_URL` if set.
