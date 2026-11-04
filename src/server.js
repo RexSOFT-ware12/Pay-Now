@@ -1,6 +1,10 @@
 const express=require("express"),helmet=require("helmet"),cors=require("cors"),rateLimit=require("express-rate-limit"),mongoose=require("mongoose");
 const cfg=require("./config"),{router,deliver}=require("./routes"),{Event}=require("./models");
-const app=express();app.disable("x-powered-by");app.set("trust proxy",1); // Render/any PaaS proxy: use the real client IPapp.use(helmet());app.use(cors({origin:false}));
+const app=express();
+app.disable("x-powered-by");
+app.set("trust proxy",1); // Render's reverse proxy supplies the client IP.
+app.use(helmet());
+app.use(cors({origin:false}));
 // Never rate-limit Paystack's webhook or health checks: dropped webhooks mean lost payments.
 app.use(rateLimit({windowMs:60000,max:120,standardHeaders:true,legacyHeaders:false,skip:(req)=>req.path==="/webhooks/paystack"||req.path==="/health"}));
 // Preserve exact bytes for Paystack HMAC before JSON parsing.
