@@ -1,6 +1,7 @@
 const express=require("express"),crypto=require("crypto"),axios=require("axios");
 const cfg=require("./config"),{Payment,Event,Subscription}=require("./models"),paystack=require("./paystack");
 const {safeEqual,verifyPaystack,signForward}=require("./security");
+const {resolveApp,fallbackSubscriptionApp}=require("./routing");
 const router=express.Router();
 function internal(req,res,next){if(!safeEqual(req.get("x-fabric-pay-key"),cfg.internalSecret))return res.status(401).json({error:"Unauthorized"});next();}
 function admin(req,res,next){if(!safeEqual(req.get("x-admin-key"),cfg.adminKey))return res.status(401).json({error:"Unauthorized"});next();}
@@ -47,11 +48,12 @@ router.post("/webhooks/paystack",async(req,res,next)=>{
   if(!verifyPaystack(raw,req.get("x-paystack-signature"),cfg.webhookSecret))return res.status(401).send("Invalid signature");
   const payload=req.body||{},event=payload.event||"unknown",data=payload.data||{};
   const ref=data.reference||data.transaction?.reference||null;
-  const metadata=data.metadata||data.transaction?.metadata||{};
-  let app=metadata.application||metadata.app||null;
+  // 1) explicit tag / plan code / metadata shape  2) our own DB  3) sole-subscription-app fallback
+  let app=resolveApp(payload,cfg.apps).app;
   if(!app&&ref){const p=await Payment.findOne({reference:ref});app=p?.app||null;}
   if(!app&&data.subscription_code){const s=await Subscription.findOne({subscriptionCode:data.subscription_code});app=s?.app||null;}
   if(!app&&data.subscription?.subscription_code){const s=await Subscription.findOne({subscriptionCode:data.subscription.subscription_code});app=s?.app||null;}
+  if(!app)app=fallbackSubscriptionApp(event,cfg.apps);
   // Store every event even if app cannot be identified (operations can replay after mapping).
   const eventId=crypto.createHash("sha256").update(raw).digest("hex");
   const saved=await Event.findOneAndUpdate({eventId},{$setOnInsert:{eventId,event,reference:ref,app,payload,status:app?"queued":"unrouted"}},{upsert:true,new:true});
@@ -83,7 +85,7 @@ async function applySubscriptionEvent(ev){
 }
 // Admin controls: inspect, replay failed/unrouted events, create Paystack plans.
 router.get("/v1/admin/events",admin,async(req,res,next)=>{try{const rows=await Event.find({status:{$in:["failed","unrouted"]}}).sort({createdAt:-1}).limit(100);res.json(rows);}catch(e){next(e);}});
-router.post("/v1/admin/events/:id/replay",admin,async(req,res,next)=>{try{const ev=await Event.findById(req.params.id);if(!ev)return res.status(404).json({error:"Not found"});ev.status="queued";await ev.save();await deliver(ev.id);res.json({ok:true,status:(await Event.findById(ev.id)).status});}catch(e){next(e);}});
+router.post("/v1/admin/events/:id/replay",admin,async(req,res,next)=>{try{const ev=await Event.findById(req.params.id);if(!ev)return res.status(404).json({error:"Not found"});const want=req.body?.app;if(want){if(!cfg.apps[want])return res.status(400).json({error:"Unknown app"});ev.app=want;}ev.status="queued";await ev.save();await deliver(ev.id);res.json({ok:true,status:(await Event.findById(ev.id)).status});}catch(e){next(e);}});
 router.post("/v1/admin/plans",admin,async(req,res,next)=>{try{const {name,amount,interval,currency="GHS",description}=req.body;if(!name||!Number.isInteger(Number(amount))||Number(amount)<=0||!interval)return res.status(400).json({error:"name, amount in pesewas, interval required"});res.status(201).json(await paystack.createPlan({name,amount:Number(amount),interval,currency,description}));}catch(e){next(e);}});
 router.get("/v1/admin/plans",admin,async(req,res,next)=>{try{res.json(await paystack.listPlans());}catch(e){next(e);}});
 router.get("/v1/subscriptions/:app/:userId",internal,async(req,res,next)=>{try{res.json(await Subscription.find({app:req.params.app,userId:req.params.userId}).sort({createdAt:-1}));}catch(e){next(e);}});
